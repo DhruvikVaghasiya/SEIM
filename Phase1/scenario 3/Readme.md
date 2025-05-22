@@ -1,52 +1,114 @@
-# Scenario 3: Lateral Movement Attempt via RDP (T1021.001)
+🔐 Scenario 3: Lateral Movement Attempt via RDP (T1021.001)
+📖 Overview
+This scenario simulates a lateral movement attempt where an attacker uses Remote Desktop Protocol (RDP) to move laterally within a network. Since only one Windows 10 VM is available, we simulate the attack using Kali Linux as the attacker machine.
 
-## 🛠️ Description
-This scenario simulates a lateral movement attempt using Remote Desktop Protocol (RDP) between two Windows VMs. The attacker attempts multiple failed RDP logins before successfully logging in from a non-standard internal IP address, mimicking a common lateral movement technique.
+🎯 Objective
+Simulate failed RDP login attempts followed by a successful login.
 
----
+Trigger alerts in Splunk for:
 
-## 🎯 Objective
-- Detect failed and successful RDP logins (Event IDs 4625 and 4624).
-- Identify if a privileged account successfully logs in from a **non-standard internal IP**.
-- Correlate successful login with earlier failed attempts.
-- (Bonus) Apply GeoIP enrichment if the login originates from a VPN.
+Successful RDP login from a non-standard internal IP.
 
----
+Correlate previous failed attempts with a successful login.
 
-## 🧪 Lab Environment
-- **Windows 10/11 VM (Attacker)**
-- **Windows 10/11 or Server VM (Target)**
-- **Ubuntu VM with Splunk Enterprise and Winlogbeat Forwarders**
-- Optional VPN or different internal IP subnet to simulate anomaly
+🧪 Lab Environment
+Component	Configuration/Use
+Kali Linux	Used to initiate RDP brute-force and successful login
+Windows 10 VM	Target system (RDP enabled)
+Ubuntu + Splunk	SIEM log collection and detection
 
----
+🔧 Configuration Steps
+1. ✅ Enable RDP on Windows 10 VM
+Go to: System Properties > Remote → Enable:
 
-## 🔧 Step-by-Step Execution
+“Allow remote connections to this computer”
 
-### ✅ 1. Prepare the Environment
-- Enable **Remote Desktop (RDP)** on both Windows VMs:
-  - `Settings > System > Remote Desktop > Enable`
-- Enable Security Event Logging:
-  - Run `secpol.msc` → Audit Policy → Enable:
-    - `Audit logon events` (Success/Failure)
-    - `Audit account logon events` (Success/Failure)
+Allow Remote Desktop through Windows Defender Firewall:
 
-### ✅ 2. Simulate the Attack
-- From the **Attacker VM**, open RDP (`mstsc`) and connect to the **Target VM**:
-  - Perform **3-5 failed logins** with incorrect credentials.
-  - Then perform **a successful login** using valid admin credentials.
-  - Use a **different subnet IP** or VPN if possible.
+Control Panel > Windows Defender Firewall > Allow an app
 
-### ✅ 3. Log Forwarding to Splunk
-- Ensure **Winlogbeat** or **Splunk Universal Forwarder** is configured on both VMs.
-- Logs should be sent to Splunk from the **Security event channel**.
-- Event IDs involved:
-  - **4625** = Failed RDP login
-  - **4624** = Successful RDP login (LogonType 10 = Remote Interactive)
+2. 🛡️ Configure Security Logging
+On Windows 10 VM:
 
-### ✅ 4. Splunk Detection Queries
+Open secpol.msc → Local Policies > Audit Policy:
 
-#### 🔍 A. Detect Failed RDP Logins
-```spl
+Enable:
+
+Audit logon events → Success, Failure
+
+Audit account logon events → Success, Failure
+
+3. 📦 Install and Configure Winlogbeat
+Install Winlogbeat to forward Windows logs to Splunk:
+
+Configure winlogbeat.yml:
+
+yaml
+Copy
+Edit
+winlogbeat.event_logs:
+  - name: Security
+    ignore_older: 72h
+
+output.logstash:
+  hosts: ["<Ubuntu_IP>:5044"]
+Start the Winlogbeat service:
+
+bash
+Copy
+Edit
+Start-Service winlogbeat
+✅ Ensure the Splunk server is configured to receive logs from Winlogbeat (via Logstash or direct input).
+
+🚨 Simulating the Attack
+Step 1: Install RDP Client on Kali
+bash
+Copy
+Edit
+sudo apt update
+sudo apt install freerdp2-x11 -y
+Step 2: Failed RDP Attempts
+Use incorrect credentials multiple times:
+
+bash
+Copy
+Edit
+xfreerdp /u:Admin /p:wrongpass /v:<Windows10_VM_IP>
+Step 3: Successful Login
+Try with valid credentials:
+
+bash
+Copy
+Edit
+xfreerdp /u:Admin /p:CorrectPassword /v:<Windows10_VM_IP>
+✅ You’ve now simulated lateral movement with multiple failed attempts followed by success.
+
+📊 Detection in Splunk
+A. Failed RDP Attempts
+spl
+Copy
+Edit
 index=winlogbeat OR index=wineventlog EventCode=4625 LogonType=10
-| stats count by Account_Name, host, IpAddress, _time
+| stats count by Account_Name, IpAddress, _time
+B. Successful RDP Logins
+spl
+Copy
+Edit
+index=winlogbeat OR index=wineventlog EventCode=4624 LogonType=10
+| stats count by Account_Name, IpAddress, _time
+C. Correlate Failed + Success Attempts
+spl
+Copy
+Edit
+index=winlogbeat OR index=wineventlog (EventCode=4625 OR EventCode=4624) LogonType=10
+| stats values(EventCode) as events, min(_time) as first_seen, max(_time) as last_seen by Account_Name, IpAddress
+| where "4625" in events AND "4624" in events
+💡 Bonus: Geolocation (Optional)
+Use Splunk's IP lookup or external threat intel API to tag non-standard internal or VPN IPs.
+
+✅ Outcome
+Successfully simulated RDP brute-force and lateral movement from Kali Linux to Windows 10 VM.
+
+Logs captured and analyzed in Splunk.
+
+Correlated successful login with previous failed attempts from a suspicious IP.
