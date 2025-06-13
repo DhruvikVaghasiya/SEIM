@@ -1,4 +1,4 @@
-# Scenario 5: Credential Dumping and Exfiltration (Mimikatz via PowerShell)
+# Scenario 5: Credential Dumping and Exfiltration (Mimikatz via PowerShell
 
 ## 🎯 Objective
 
