@@ -55,5 +55,4 @@ If you find areas for improvement or have suggestions, feel free to open an issu
 
 ---
 
-> _"All success is from Allah, and any error is from myself and Satan. I seek to continuously improve and share knowledge as I grow."_ — **Dhruvik Vaghasiya**
 
